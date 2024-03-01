@@ -11,6 +11,23 @@ public abstract class VectorbaseStore
     public abstract IEnumerable<VectorbaseEntry> Find(ReadOnlyMemory<float> vector, FindOptions options);
 
     public abstract int Add(VectorbaseEntry entry);
+
+    public abstract void Add(IReadOnlyList<VectorbaseEntry> entry);
+
+    public static float CosineSimilarity(ReadOnlySpan<float> x, ReadOnlySpan<float> y)
+    {
+        float dot = 0, xSumSquared = 0, ySumSquared = 0;
+
+        for (int i = 0; i < x.Length; i++)
+        {
+            dot += x[i] * y[i];
+            xSumSquared += x[i] * x[i];
+            ySumSquared += y[i] * y[i];
+        }
+
+        double result = dot / (Math.Sqrt(xSumSquared) * Math.Sqrt(ySumSquared));
+        return (float)result;
+    }
 }
 
 public readonly struct VectorbaseEntry

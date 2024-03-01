@@ -14,10 +14,10 @@ public class Vectorbase
 
     readonly List<string> _todo = new List<string>();
 
-    public Vectorbase(EmbeddingClient client)
+    public Vectorbase(EmbeddingClient client, VectorbaseStore store = default)
     {
         _client = client;
-        _store = new MemoryVectorbaseStore();
+        _store = store??new MemoryVectorbaseStore();
     }
 
     public void Add(string text)

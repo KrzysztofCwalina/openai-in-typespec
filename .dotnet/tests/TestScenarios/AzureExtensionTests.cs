@@ -1,13 +1,14 @@
 ﻿using NUnit.Framework;
 using OpenAI.Chat;
 using OpenAI.Embeddings;
+using Pinecone;
 using System;
 using System.ClientModel;
 using System.Collections.Generic;
 
 namespace OpenAI.Tests.Chat;
 
-public class AzureExtensionsTests
+public partial class AzureExtensionsTests
 {
     static readonly string endpoint = Environment.GetEnvironmentVariable("AZ_OPENAI_ENDPOINT")!;
     static readonly Uri uri = new(endpoint);
@@ -100,13 +101,14 @@ public class AzureExtensionsTests
         // helper APIs
         ChatFunctions funtions = new(typeof(MyFunctions));
         Vectorbase vectors = new(embeddingsClient);
-        vectors.Add("I don't like Washington weather.");
+        vectors.Add("I don't like Seattle weather.");
 
         ChatCompletionOptions completionOptions = new() { Tools = funtions.Definitions };
         List<ChatRequestMessage> prompt = new();
 
         foreach (var testMessage in testMessages)
         {
+            Console.WriteLine($"u: {testMessage}");
             IEnumerable<VectorbaseEntry> relatedItems = vectors.Find(testMessage);
             foreach (VectorbaseEntry relatedItem in relatedItems) {
                 prompt.Add(ChatRequestMessage.CreateSystemMessage(relatedItem.Data.ToString()));
@@ -121,7 +123,7 @@ public class AzureExtensionsTests
             {
                 case ChatFinishReason.Stopped:
                     prompt.Add(new ChatRequestAssistantMessage(chatCompletion));
-                    Console.WriteLine(chatCompletion.Content);
+                    Console.WriteLine($"a: {chatCompletion.Content}");
                     break;
                 case ChatFinishReason.ToolCalls:
                     prompt.Add(new ChatRequestAssistantMessage(chatCompletion));
@@ -136,5 +138,39 @@ public class AzureExtensionsTests
                     throw new NotImplementedException(chatCompletion.FinishReason.ToString());
             }
         }
+    }
+
+    [Test]
+    public void Pinecone()
+    {
+        var clientOptions = new AzureOpenAIClientOptions(new Uri(endpoint), credential);
+        clientOptions.Deployments.Embeddigs = embeddingsDeployment;
+        EmbeddingClient embeddingsClient = new(model: "", credential, clientOptions);
+
+        PineconeVectorbaseStore pineconeStore = CreatePineconeStore();
+        Vectorbase vectors = new(embeddingsClient, pineconeStore);
+        vectors.Add("I don't like Seattle weather.");
+
+        IEnumerable<VectorbaseEntry> related = vectors.Find("Do I like Seattle?");
+        foreach (var rel in related)
+        {
+            Console.WriteLine(rel.Data.ToString());
+        }
+    }
+
+    private static PineconeVectorbaseStore CreatePineconeStore()
+    {
+        var host = new Uri("https://testindex-lkacrhj.svc.gcp-starter.pinecone.io");
+        string pineconeKey = Environment.GetEnvironmentVariable("PINECONE_KEY")!;
+
+        var pinecone =new PineconeClient(pineconeKey, "gcp-starter");
+        string indexName = "testindex";
+        var indexList = pinecone.ListIndexes().GetAwaiter().GetResult();
+        if (!indexList.AsSpan().Contains(indexName))
+        {
+            pinecone.CreateIndex(indexName, 1536, Metric.Cosine).GetAwaiter().GetResult();
+        }
+        var pineconeStore =new PineconeVectorbaseStore(pinecone, indexName);
+        return pineconeStore;
     }
 }
